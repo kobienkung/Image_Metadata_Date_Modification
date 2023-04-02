@@ -6,38 +6,43 @@ import pandas as pd
 from openpyxl import load_workbook
 import re
 
-# Get all file information
-input_folder_path = r'C:\Users\kobienkung\OneDrive - KMITL\REMINISENCE'
-file_name = []
-file_extension = []
-file_path = []
-for path, directories, files in os.walk(input_folder_path):
-    for file in files:
-        file_path.append(os.path.join(path, file))
-        split_names = os.path.splitext(file)
-        file_name.append(split_names[0])
-        file_extension.append(split_names[1])
-df_name = pd.DataFrame({'file_name':file_name, 'file_extension':file_extension, 'file_path':file_path})
+def get_file_information(input_folder_path, excel_file_name):
+    '''Read all files in a given folder then export file_name and file_extension as an excel'''
+    # Get all file information
+    file_name = []
+    file_extension = []
+    file_path = []
+    remark = []
+    to_use_date = []
+    for path, directories, files in os.walk(input_folder_path):
+        for file in files:
+            file_path.append(os.path.join(path, file))
+            split_names = os.path.splitext(file)
+            file_name.append(split_names[0])
+            file_extension.append(split_names[1])
+    df_name = pd.DataFrame({'file_name':file_name, 'file_extension':file_extension, 'file_path':file_path})
 
-# Export file information to .xlsx file
-FilePath = "file_name.xlsx"
-try:
-    ExcelWorkbook = load_workbook(FilePath)
-    with pd.ExcelWriter(FilePath, engine = 'openpyxl') as writer:
-        writer.book = ExcelWorkbook
-        df_name.to_excel(writer, sheet_name='file_path')
-except Exception as exc:
-    if type(exc) == FileNotFoundError: 
-        df_name.to_excel(writer, sheet_name='Python')
-    else:
-        print(exc)
-
-
-
-
-
+    # Export file information to .xlsx file
+    FilePath = excel_file_name
+    try:
+        ExcelWorkbook = load_workbook(FilePath)
+        with pd.ExcelWriter(FilePath, engine = 'openpyxl') as writer:
+            writer.book = ExcelWorkbook
+            df_name.to_excel(writer)
+    except Exception as exc:
+        if type(exc) == FileNotFoundError: 
+            df_name.to_excel(FilePath)
+        else:
+            print(exc)
 
 
+input_folder_path = r'C:\Users\kobienkung\OneDrive - KMITL\REMINISENCE\Marriage ceremony'
+excel_file_name = 'wedding.xlsx'
+get_file_information(input_folder_path, excel_file_name)
+# open exel file and manually get date_taken/DateTimeOriginal from file_name
+# if dates are found in file_name, put 'ready_date' or 'unix' in remark column
+# then put unix_number(eg., '1646396683562') for 'unix' remark in to_use_date column
+# or put YYYY:mm:DD HH:MM:SS:fff (eg., '2021:10:31 18:04:40:940') for 'ready_date' remark in to_use_date column
 
 
 
@@ -55,14 +60,15 @@ withDatetimeOriginalFile = {'.jpeg','.jpg','.mp4'}
 withCreationTimeFile = {'.png'}
 validExtension = withDatetimeOriginalFile.union(withCreationTimeFile)
 
-FilePath = "Exiftool_output10621.xlsx"
+FilePath = excel_file_name
 df = pd.read_excel(FilePath, sheet_name='Sheet1', dtype=str, keep_default_na=False)
 if 'output' not in df.columns:
     df['output'] = ''
 
-start_ind = 10000
+start_ind = 0
 stop_ind = len(df)
 start_time = datetime.now()
+print(start_time)
 for i in range(start_ind,stop_ind):
     print(i)
     file_extension = df['file_extension'][i]
@@ -72,6 +78,7 @@ for i in range(start_ind,stop_ind):
     img_path = df['file_path'][i]
     img_attr = subprocess.check_output(['exiftool', img_path])
     img_attr = str(img_attr)
+    # to implement as an option if to skip files with existing date_taken
     if 'Creation Time' in img_attr or 'Date/Time Original' in img_attr: 
         df['output'][i] = 'already'# have date taken'
         continue
@@ -83,10 +90,10 @@ for i in range(start_ind,stop_ind):
 
     if df['remark'][i]:
         if df['remark'][i] == 'ready_date':
-            date_from_file_name = df['to_use_number'][i]
+            date_from_file_name = df['to_use_date'][i]
             all_dates.append(date_from_file_name)
-        elif df['remark'][i] == 'unix' and len(df['to_use_number'][i]) in [10,13]:
-            date_from_file_name = unix_to_CE(df['to_use_number'][i])
+        elif df['remark'][i] == 'unix' and len(df['to_use_date'][i]) in [10,13]:
+            date_from_file_name = unix_to_CE(df['to_use_date'][i])
             all_dates.append(date_from_file_name)
 
     min_date = min(all_dates)
@@ -104,75 +111,7 @@ for i in range(start_ind,stop_ind):
         df['output'][i] = 'error'
 
 stop_time = datetime.now()
+print(stop_time)
 print(f'done {str(i-start_ind+1)} images in {stop_time - start_time}')
 
 df.to_excel(f'Exiftool_output{str(i+1)}.xlsx')
-
-
-
-# Extract date from the name
-# Set dateTime for video, pdf 
-# Check if it's png file
-# Does it already have -DateTimeOriginal / -CreationTime
-# Collect output status results
-
-#unix_name = '1587310027591'
-#date_from_unix = 'fake'
-# get unix date from file name
-# demo
-
-
-
-
-df = pd.read_excel('file_name.xlsx', sheet_name='file_path', keep_default_na=False)
-for i in range(len(df)):
-    df['remark'][i] = unix_to_CE(df['to_use_number'][i])
-
-file = '2014-05-18'
-def try_parsing_date(text):
-    for fmt in ('%Y-%m-%d', '%d.%m.%Y', '%d/%m/%Y'):
-        try:
-            print(datetime.strptime(text, fmt))
-            return datetime.strptime(text, fmt)
-        except ValueError:
-            pass
-    #raise ValueError('no valid date format found')
-date_from_file_name = try_parsing_date(file)
-if date_from_file_name:  all_dates.append(date_from_file_name)
-
-def try_parsing_date_with_time(text):
-    for fmt in ("%Y:%m:%d %H:%M:%S+%Z"):
-        try:
-            return datetime.strptime(text, fmt)
-        except ValueError:
-            pass
-    #raise ValueError('no valid date format found')
-test = [a for a in all_dates if min_date in a]
-for a in test:
-    complete_min_date =  try_parsing_date_with_time(a)
-
-#---------------------------------------------------------------
-output_folder_path = 'C:/Users/kobienkung/Pictures/Exiftool_output'
-
-if not os.path.exists(output_folder_path): 
-    os.mkdir(output_folder_path)
-    
-img_file_name = 'Screenshot (143).png'
-img_path = input_folder_path + '/' + img_file_name
-
-with open(img_path, 'rb') as img_file:
-    img = Image(img_file)
-
-# TO DO
-# if img.has_exif and img.get(datetime_original):
-
-[print(a + ' ' + img.get(a)) for a in img.list_all() if 'datetime' in a]
-
-first_datetime = min([img.get(a) for a in img.list_all() if 'datetime' in a])
-
-img.set('datetime_original', img.datetime_original)
-
-new_img_path = output_folder_path + '/' + img_file_name
-
-with open(new_img_path, 'wb') as new_img_file:
-    new_img_file.write(img.get_file())
